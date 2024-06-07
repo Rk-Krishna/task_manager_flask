@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>Task Master</title>
+{% endblock %}
+
+{% block body %}
+<h1>ENTER OTP</h1>
+<form action="/verify" method="POST" class="container">
+<label name="otp" id="otp"> Enter OTP</label>
+<input type="text" name="otp" id="otp"><br><br>
+<input type="submit" value="OTP">
+</form>
+{% endblock %}

@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>Task Master</title>
+{% endblock %}
+
+{% block body %}
+<div class="content">
+
+    <h1>Task Manager</h1>
+    <table >
+        <tr>
+            <th>Task</th>
+            <th>Assigned To</th>
+            <th>Assigned By</th>
+            <th>Date Created</th>
+            <th>Date to be Completed</th>
+            <th>Review</th>
+            <th>Actions</th>
+        </tr>
+        {% for  tasks in tasks%}
+        <tr>
+            <td> {{ tasks.content}}</td>
+            <td>{{tasks.task_assigned_to}}</td>
+            <td>{{tasks.task_assigned_by}}</td>
+            <td>{{ tasks.date_created}}</td>
+            <td>{{tasks.completed_by}}</td>
+            <td>{{tasks.review}}</td>
+            <td>
+                <form action="/delete/{{tasks.id}}" method="POST" style="display: inline;">
+                    <button type="submit" class="btn-delete">Delete</button>
+                </form>
+                <br><br>
+                <form action="/update/{{tasks.id}}" method="GET" style="display: inline;">
+                    <button type="submit" class="btn-update">Update</button>
+                </form>
+            </td>
+        {% endfor %}
+        </tr>
+    </table>
+    <form  action="/index" method="POST" class="container">
+    <div class="form-group">
+        <label name="content" id="content">Content :</label>
+        <input type="text" name="content" id="'content">
+    </div>
+    <div class="form-group">
+        <label name="assigned_to" id="assigned_to">Assigned To :</label>
+        <input type ="text" name="assigned_to" id ="assigned_to">
+    </div>
+    <div class="form-group">
+        <label name="assigned_by" id="assigned_by">Assigned By :</label>
+        <input type ="text" name="assigned_by" id ="assigned_by">
+    </div>
+    <div class="form-group">
+        <label name="completion_time" id="completion_time">To Be Completed By:</label>
+        <input type="datetime-local" name="completion_time" id="completion_time">
+    </div>
+    <div class="form-group">
+        <label name="review" id="review" name="review">Review</label>
+        <input type="text" name="review" id="review">
+    </div>
+    <div class="form-group">
+        <input type="submit" value="Add Task">
+    </div>
+    </form>
+</div>
+{% endblock %}
+
+

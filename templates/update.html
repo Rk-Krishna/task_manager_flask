@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+
+{% block head %}
+<title>Task Master</title>
+{% endblock %}
+
+{% block body %}
+<form  action="/update/{{task.id}}" method="POST" class="container">
+    <label name="content" id="content">Content :</label>
+    <input type="text" name="content" id="'content">
+    <label name="assigned_to" id="assigned_to">Assigned To :</label>
+    <input type ="text" name="assigned_to" id ="assigned_to">
+    <label name="assigned_by" id="assigned_by">Assigned By :</label>
+    <input type ="text" name="assigned_by" id ="assigned_by">
+    <label name="completion_time" id="completion_time">To Be Completed By:</label>
+    <input type="datetime-local" name="completion_time" id="completion_time">
+    <label name="review" id="review">Review</label>
+    <input type="text" name="review" id="review">
+    <input type="submit" value="Add Task">
+</form>
+{% endblock %}
