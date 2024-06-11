@@ -1,8 +1,16 @@
-from flask import Flask, render_template,request, redirect,flash,session
+from flask import Flask, render_template, request, redirect, flash, session, url_for,Response
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
 from flask_mail import Mail, Message
+from flask_wtf import FlaskForm
+from wtforms import DateTimeLocalField, StringField, PasswordField, SubmitField
+from wtforms.validators import DataRequired, Email
+from flask_login import LoginManager, UserMixin, login_user
+from flask_bcrypt import Bcrypt
+from flask_migrate import Migrate
 from random import randint
+from datetime import datetime
+from fpdf import FPDF
+from flask import send_file
 
 import pymysql
 
@@ -19,6 +27,20 @@ app.config["MAIL_USE_SSL"] = True
 mail = Mail(app)
 
 db = SQLAlchemy(app)
+bcrypt = Bcrypt(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'home'
+migrate = Migrate(app, db)
+
+class User(db.Model, UserMixin):
+    __tablename__ = 'auth1'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(200), nullable=False, unique=True)
+    password = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(200), nullable=False, unique=True)
+
+    def __repr__(self):
+        return f'<User {self.username}>'
 
 class Todo(db.Model):
     __tablename__ = 'task_manager'
@@ -29,121 +51,182 @@ class Todo(db.Model):
     completed_by = db.Column(db.DateTime)
     date_created = db.Column(db.DateTime, default=datetime.now)
     review = db.Column(db.String(200), nullable=True)
-    
+
     def __repr__(self):
         return f'<Task {self.id}>'
 
-class Auth(db.Model):
-    __tablename__ = 'auth1'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(200), nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-    email = db.Column(db.String(200), nullable=False)
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
-    def __repr__(self):
-        return f'<Auth {self.id}>'
+class SignupForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    submit = SubmitField('Sign Up')
 
-@app.route('/signup', methods=['POST', 'GET'])
+class LoginForm(FlaskForm):
+    username = StringField('Username', validators=[DataRequired()])
+    password = PasswordField('Password', validators=[DataRequired()])
+    submit = SubmitField('Login')
+
+class TaskForm(FlaskForm):
+    content = StringField('Content', validators=[DataRequired()])
+    task_assigned_to = StringField('Assigned To', validators=[DataRequired()])
+    task_assigned_by = StringField('Assigned By', validators=[DataRequired()])
+    completed_by =DateTimeLocalField('Completed By', format='%Y-%m-%dT%H:%M')
+    review = StringField('Review')
+    submit = SubmitField('Add Task')
+    search=StringField('search')
+    submit1=SubmitField('search')
+@app.route('/signup', methods=['GET', 'POST'])
 def signup():
-    if request.method == 'POST':
-        username = request.form.get("username", False)
-        password = request.form.get("password", False)
-        email = request.form.get("email", False)
-        if not username or not password or not email:
-            flash('Username, password, and email are required.')
-        existing_user = Auth.query.filter_by(username=username).first()
+    form = SignupForm()
+    if form.validate_on_submit():
+        hashed_password = bcrypt.generate_password_hash(form.password.data).decode('utf-8')
+        user = User(username=form.username.data, password=hashed_password, email=form.email.data)
+        existing_user = User.query.filter_by(username=form.username.data).first()
         if existing_user:
-            return render_template('sign_up_error.html')
+            flash('Username already exists.', 'danger')
+            return render_template('signup.html', form=form)
         else:
-            user = Auth(username=username, password=password, email=email)
-            try:
-                db.session.add(user)
-                db.session.commit()
-                return redirect('/')
-            except Exception as e:
-                return f'There is an error in creating user: {e}'
-    else:
-        return render_template('signup.html')
+            db.session.add(user)
+            db.session.commit()
+            flash('User created successfully.', 'success')
+            return redirect(url_for('home'))
+    return render_template('signup.html', form=form)
 
-@app.route('/', methods=['POST', 'GET'])
+@app.route('/', methods=['GET', 'POST'])
 def home():
-    if request.method == 'POST':
-        username = request.form.get("username", False)
-        password = request.form.get("password", False)
-        existing_user = Auth.query.filter_by(username=username, password=password).first()
-        if existing_user:
-            email1 = existing_user.email
-            msg = Message(subject='OTP', sender='kr8123965@gmail.com', recipients=[email1])
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user and bcrypt.check_password_hash(user.password, form.password.data):
+            login_user(user)
             otp = randint(000000, 999999)
-            session['otp']=otp
+            session['otp'] = otp
+            msg = Message(subject='OTP', sender='kr8123965@gmail.com', recipients=[user.email])
             msg.body = str(otp)
             mail.send(msg)
-            return render_template('verify.html')
+            flash('OTP sent to your email.', 'success')
+            return redirect(url_for('verify'))
         else:
-            return render_template('error.html')
-    else:
-        return render_template('home.html')
+            flash('Invalid username or password.', 'danger')
+    return render_template('home.html', form=form)
 
-@app.route('/verify', methods=['POST', 'GET'])
+@app.route('/verify', methods=['GET', 'POST'])
+
 def verify():
     if request.method == 'POST':
         user_otp = request.form.get("otp", False)
-        otp=session.get('otp')
-        if otp == int(user_otp):
-            tasks = Todo.query.all()
-            return render_template("index.html", tasks=tasks)
+        otp = session.get('otp')
+        if otp and int(user_otp) == otp:
+            flash('OTP verified successfully.', 'success')
+            return redirect(url_for('index'))
         else:
-            return render_template("verify.html")
-    else:
-        return render_template("verify.html")
+            flash('Invalid OTP.', 'danger')
+            return render_template('verify.html')
+    return render_template('verify.html')
 
-@app.route('/index', methods=['POST', 'GET'])
+
+
+@app.route('/index', methods=['GET', 'POST'])
+
 def index():
-    if request.method == 'POST':
-        task_content = request.form['content']
-        task_assigned_to = request.form['assigned_to']
-        task_assigned_by = request.form['assigned_by']
-        completed_by = request.form['completion_time']
-        review=request.form['review']
-        new_task = Todo(content=task_content, task_assigned_to=task_assigned_to,
-                        task_assigned_by=task_assigned_by, completed_by=completed_by,review=review)
-        try:
-            db.session.add(new_task)
-            db.session.commit()
-            return redirect('/index')
-        except Exception as e:
-            return f'There was an issue in adding your task: {e}'
+    form = TaskForm()
+    
+    if request.method=="POST":
+        new_task = Todo(
+            content=form.content.data,
+            task_assigned_to=form.task_assigned_to.data,
+            task_assigned_by=form.task_assigned_by.data,
+            completed_by=form.completed_by.data,
+            review=form.review.data
+            )
+        db.session.add(new_task)
+        db.session.commit()
+        flash('Task added successfully.', 'success')
+        return redirect(url_for('index'))
     else:
         tasks = Todo.query.all()
-        return render_template('index.html', tasks=tasks)
+        return render_template('index.html', form=form, tasks=tasks)
+@app.route('/delete/<int:id>', methods=['POST'])
 
-@app.route('/delete/<int:id>', methods=['GET', 'POST'])
 def delete(id):
-    if request.method == 'POST':
-        task_to_delete = Todo.query.get_or_404(id)
-        try:
-            db.session.delete(task_to_delete)
-            db.session.commit()
-            return redirect('/index')
-        except Exception as e:
-            return f'There was a problem deleting: {e}'
+    task_to_delete = Todo.query.get_or_404(id)
+    db.session.delete(task_to_delete)
+    db.session.commit()
+    flash('Task deleted successfully.', 'success')
+    return redirect(url_for('index'))
 
 @app.route('/update/<int:id>', methods=['GET', 'POST'])
+
 def update(id):
     task = Todo.query.get_or_404(id)
-    if request.method == 'POST':
-        task.content = request.form['content']
-        task.task_assigned_to = request.form['assigned_to']
-        task.task_assigned_by = request.form['assigned_by']
-        task.completed_by = request.form['completion_time']
-        task.review=request.form['review']
-        try:
-            db.session.commit()
-            return redirect('/')
-        except Exception as e:
-            return f'Not able to update: {e}'
-    else:
-        return render_template('update.html', task=task)
+    form = TaskForm()
+    if request.method =='POST':
+        task.content = form.content.data
+        task.task_assigned_to = form.task_assigned_to.data
+        task.task_assigned_by = form.task_assigned_by.data
+        task.completed_by = form.completed_by.data
+        task.review = form.review.data
+        db.session.commit()
+        flash('Task updated successfully.', 'success')
+        return redirect(url_for('index'))
+    elif request.method == 'GET':
+        form.content.data = task.content
+        form.task_assigned_to.data = task.task_assigned_to
+        form.task_assigned_by.data = task.task_assigned_by
+        form.completed_by.data = task.completed_by
+        form.review.data = task.review
+        return render_template('update.html', form=form, task=task)
 
+@app.route('/genartor',methods=['GET'])
+def generator():
+    pdf = FPDF()
+    pdf.add_page()
+    margin = 10
+    pdf.set_left_margin(margin)
+    pdf.set_right_margin(margin)
+    page_width = pdf.w - 2 * margin
+    col_width = page_width / 5
+    pdf.set_font('Times', 'B', 14.0)
+    pdf.cell(page_width, 10, 'Tasks Assigned', align='C')
+    pdf.ln(10)
+    pdf.set_font('Courier', '', 12)
+    th = pdf.font_size + 2
+    pdf.cell(7, th, "ID", border=1)
+    pdf.cell(30, th, "Content", border=1)
+    pdf.cell(30, th, "Assigned To", border=1)
+    pdf.cell(30, th, "Assigned By", border=1)
+    pdf.cell(50, th, "Completed By", border=1)
+    pdf.cell(50,th,"Review",border=1)
+    pdf.ln(th)
+    tasks = Todo.query.all()
+    for task in tasks:
+        completed_by = str(task.completed_by) if task.completed_by else ""
+        pdf.cell(7, th, str(task.id), border=1)
+        pdf.cell(30, th, task.content, border=1)
+        pdf.cell(30, th, task.task_assigned_to, border=1)
+        pdf.cell(30, th, task.task_assigned_by, border=1)
+        pdf.cell(50, th, completed_by, border=1)
+        pdf.cell(50,th,task.review,border=1)
+        pdf.ln(th)
+    pdf_output="tasks_assigned.pdf"
+    pdf.output(pdf_output,'F')
+
+    return send_file(pdf_output, as_attachment=True, download_name='tasks_assigned.pdf', mimetype='application/pdf')
+@app.route('/search', methods=['POST', 'GET'])
+def search():
+    form = TaskForm()
+    tasks = []
+    if request.method == 'POST':
+        search_query = form.search.data
+        if search_query:
+            tasks = Todo.query.filter(Todo.content.contains(search_query)).all()
+        elif search_query=='':
+            tasks=Todo.query.all()
+    return render_template('index.html', tasks=tasks, form=form)
+    
 if __name__ == '__main__':
     app.run(debug=True)

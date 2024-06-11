@@ -5,17 +5,31 @@
 {% endblock %}
 
 {% block body %}
-<form  action="/update/{{task.id}}" method="POST" class="container">
-    <label name="content" id="content">Content :</label>
-    <input type="text" name="content" id="'content">
-    <label name="assigned_to" id="assigned_to">Assigned To :</label>
-    <input type ="text" name="assigned_to" id ="assigned_to">
-    <label name="assigned_by" id="assigned_by">Assigned By :</label>
-    <input type ="text" name="assigned_by" id ="assigned_by">
-    <label name="completion_time" id="completion_time">To Be Completed By:</label>
-    <input type="datetime-local" name="completion_time" id="completion_time">
-    <label name="review" id="review">Review</label>
-    <input type="text" name="review" id="review">
-    <input type="submit" value="Add Task">
-</form>
+<h1>Update</h1>
+<form  action="{{ url_for('update',id=task.id)}}" method="POST" class="container">
+    <div class="form-group">
+        <label name="content" id="content">Content :</label>
+        {{form.content(class="form-container")}}
+    </div>
+    <div class="form-group">
+        <label name="assigned_to" id="assigned_to">Assigned To :</label>
+        {{form.task_assigned_to(class="form-container")}}
+    </div>
+    <div class="form-group">
+        <label name="assigned_by" id="assigned_by">Assigned By :</label>
+        {{form.task_assigned_by(class="form-container")}}
+    </div>
+    <div class="form-group">
+        <label name="completion_time" id="completion_time">To Be Completed By:</label>
+        {{form.completed_by(class="form-container")}}
+    </div>
+    <div class="form-group">
+        <label name="review" id="review" name="review">Review</label>
+        {{form.review(class="form-container")}}
+    </div>
+    <div class="form-group">
+        {{form.submit(class="form-container")}}
+    </div>
+    </form>
+</div>
 {% endblock %}

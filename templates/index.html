@@ -5,9 +5,17 @@
 {% endblock %}
 
 {% block body %}
+<div class="search-container">
+    <form action="{{url_for('search')}}" method="post">
+    <label name="search" id="search"></label>
+    {{form.search}}
+    {{form.submit1(class="search-contaier button")}}
+</form>
+</div>
 <div class="content">
 
     <h1>Task Manager</h1>
+    {%if tasks %}
     <table >
         <tr>
             <th>Task</th>
@@ -27,7 +35,7 @@
             <td>{{tasks.completed_by}}</td>
             <td>{{tasks.review}}</td>
             <td>
-                <form action="/delete/{{tasks.id}}" method="POST" style="display: inline;">
+                <form action="/delete/{{tasks.id}}" method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this task?');">
                     <button type="submit" class="btn-delete">Delete</button>
                 </form>
                 <br><br>
@@ -35,35 +43,42 @@
                     <button type="submit" class="btn-update">Update</button>
                 </form>
             </td>
-        {% endfor %}
+            {% endfor %}
+            {%else%}
+            <h1>No results found</h1>
+            {% endif %}
+       
         </tr>
     </table>
-    <form  action="/index" method="POST" class="container">
+    <form  action="{{ url_for('index') }}" method="POST" class="container">
     <div class="form-group">
         <label name="content" id="content">Content :</label>
-        <input type="text" name="content" id="'content">
+        {{form.content(class="form-container")}}
     </div>
     <div class="form-group">
         <label name="assigned_to" id="assigned_to">Assigned To :</label>
-        <input type ="text" name="assigned_to" id ="assigned_to">
+        {{form.task_assigned_to(class="form-container")}}
     </div>
     <div class="form-group">
         <label name="assigned_by" id="assigned_by">Assigned By :</label>
-        <input type ="text" name="assigned_by" id ="assigned_by">
+        {{form.task_assigned_by(class="form-container")}}
     </div>
     <div class="form-group">
         <label name="completion_time" id="completion_time">To Be Completed By:</label>
-        <input type="datetime-local" name="completion_time" id="completion_time">
+        {{form.completed_by(class="form-container")}}
     </div>
     <div class="form-group">
         <label name="review" id="review" name="review">Review</label>
-        <input type="text" name="review" id="review">
+        {{form.review(class="form-container")}}
     </div>
     <div class="form-group">
-        <input type="submit" value="Add Task">
+        {{form.submit(class="form-container")}}
     </div>
     </form>
 </div>
+<a href="{{url_for('generator')}}">
+    <p>generate pdf</p>
+</a>
 {% endblock %}
 
 
