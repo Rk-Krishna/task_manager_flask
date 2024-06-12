@@ -2,7 +2,8 @@ from flask import Flask, render_template, request, redirect, flash, session, url
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
-from wtforms import StringField, PasswordField, SubmitField, DateTimeField
+from wtforms import DateTimeLocalField, StringField, PasswordField, SubmitField, DateTimeField
+from wtforms.widgets import DateTimeInput
 from wtforms.validators import DataRequired, Email
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
@@ -53,6 +54,11 @@ class Todo(db.Model):
 
     def __repr__(self):
         return f'<Task {self.id}>'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 class DateTimeLocalField(DateTimeField):
     widget = DateTimeInput()
 
@@ -71,11 +77,10 @@ class TaskForm(FlaskForm):
     content = StringField('Content', validators=[DataRequired()])
     task_assigned_to = StringField('Assigned To', validators=[DataRequired()])
     task_assigned_by = StringField('Assigned By', validators=[DataRequired()])
-    completed_by =DateTimeLocalField('Completed By', format='%Y-%m-%dT%H:%M')
+    completed_by = DateTimeLocalField('Completed By', format='%Y-%m-%dT%H:%M')
     review = StringField('Review')
     submit = SubmitField('Add Task')
-    search=StringField('search')
-    submit1=SubmitField('search')
+
 @app.route('/signup', methods=['GET', 'POST'])
 def signup():
     form = SignupForm()
@@ -112,7 +117,7 @@ def home():
     return render_template('home.html', form=form)
 
 @app.route('/verify', methods=['GET', 'POST'])
-
+@login_required
 def verify():
     if request.method == 'POST':
         user_otp = request.form.get("otp", False)
@@ -125,30 +130,27 @@ def verify():
             return render_template('verify.html')
     return render_template('verify.html')
 
-
-
 @app.route('/index', methods=['GET', 'POST'])
-
+@login_required
 def index():
     form = TaskForm()
-    
-    if request.method=="POST":
+    if request.method == 'POST':
         new_task = Todo(
             content=form.content.data,
             task_assigned_to=form.task_assigned_to.data,
             task_assigned_by=form.task_assigned_by.data,
             completed_by=form.completed_by.data,
             review=form.review.data
-            )
+        )
         db.session.add(new_task)
         db.session.commit()
         flash('Task added successfully.', 'success')
         return redirect(url_for('index'))
-    else:
-        tasks = Todo.query.all()
-        return render_template('index.html', form=form, tasks=tasks)
-@app.route('/delete/<int:id>', methods=['POST'])
+    tasks = Todo.query.all()
+    return render_template('index.html', form=form, tasks=tasks)
 
+@app.route('/delete/<int:id>', methods=['POST'])
+@login_required
 def delete(id):
     task_to_delete = Todo.query.get_or_404(id)
     db.session.delete(task_to_delete)
@@ -157,11 +159,11 @@ def delete(id):
     return redirect(url_for('index'))
 
 @app.route('/update/<int:id>', methods=['GET', 'POST'])
-
+@login_required
 def update(id):
     task = Todo.query.get_or_404(id)
     form = TaskForm()
-    if request.method =='POST':
+    if request.method == 'POST':
         task.content = form.content.data
         task.task_assigned_to = form.task_assigned_to.data
         task.task_assigned_by = form.task_assigned_by.data
@@ -178,7 +180,8 @@ def update(id):
         form.review.data = task.review
         return render_template('update.html', form=form, task=task)
 
-@app.route('/genartor',methods=['GET'])
+@app.route('/genartor', methods=['GET'])
+@login_required
 def generator():
     pdf = FPDF()
     pdf.add_page()
@@ -197,7 +200,7 @@ def generator():
     pdf.cell(30, th, "Assigned To", border=1)
     pdf.cell(30, th, "Assigned By", border=1)
     pdf.cell(50, th, "Completed By", border=1)
-    pdf.cell(50,th,"Review",border=1)
+    pdf.cell(50, th, "Review", border=1)
     pdf.ln(th)
     tasks = Todo.query.all()
     for task in tasks:
@@ -207,23 +210,12 @@ def generator():
         pdf.cell(30, th, task.task_assigned_to, border=1)
         pdf.cell(30, th, task.task_assigned_by, border=1)
         pdf.cell(50, th, completed_by, border=1)
-        pdf.cell(50,th,task.review,border=1)
+        pdf.cell(50, th, task.review, border=1)
         pdf.ln(th)
-    pdf_output="tasks_assigned.pdf"
-    pdf.output(pdf_output,'F')
+    pdf_output = "tasks_assigned.pdf"
+    pdf.output(pdf_output, 'F')
 
     return send_file(pdf_output, as_attachment=True, download_name='tasks_assigned.pdf', mimetype='application/pdf')
-@app.route('/search', methods=['POST', 'GET'])
-def search():
-    form = TaskForm()
-    tasks = []
-    if request.method == 'POST':
-        search_query = form.search.data
-        if search_query:
-            tasks = Todo.query.filter(Todo.content.contains(search_query)).all()
-        elif search_query=='':
-            tasks=Todo.query.all()
-    return render_template('index.html', tasks=tasks, form=form)
-    
+
 if __name__ == '__main__':
     app.run(debug=True)
