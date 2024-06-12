@@ -1,16 +1,15 @@
-from flask import Flask, render_template, request, redirect, flash, session, url_for,Response
+from flask import Flask, render_template, request, redirect, flash, session, url_for, Response, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_mail import Mail, Message
 from flask_wtf import FlaskForm
-from wtforms import DateTimeLocalField, StringField, PasswordField, SubmitField
+from wtforms import StringField, PasswordField, SubmitField, DateTimeField
 from wtforms.validators import DataRequired, Email
-from flask_login import LoginManager, UserMixin, login_user
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
 from flask_migrate import Migrate
 from random import randint
 from datetime import datetime
 from fpdf import FPDF
-from flask import send_file
 
 import pymysql
 
@@ -54,10 +53,8 @@ class Todo(db.Model):
 
     def __repr__(self):
         return f'<Task {self.id}>'
-
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+class DateTimeLocalField(DateTimeField):
+    widget = DateTimeInput()
 
 class SignupForm(FlaskForm):
     username = StringField('Username', validators=[DataRequired()])
